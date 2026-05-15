@@ -1,6 +1,6 @@
 # HarmReduce
 
-A static single-page harm-reduction toolkit. Drug interaction checker, dose log, inventory, taper scheduler, drug library, friend-shared inventory, realtime chat, and a daily-rate-limited bulletin board.
+A single-page harm-reduction toolkit. Drug interaction checker, dose log, inventory, taper scheduler, drug library, friend-shared inventory, realtime chat, and a daily-rate-limited bulletin board.
 
 > **Not medical advice.** This is an educational / harm-reduction tool. Information is best-effort, sourced from public databases (TripSit, openFDA), and may be incomplete or out of date. Cross-reference anything that matters. Be careful out there.
 
