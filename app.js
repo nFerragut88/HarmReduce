@@ -1522,22 +1522,94 @@
         }
         const session = window.cloud.getSession();
         if (!session) {
-          const handleInput = input("handle", { placeholder: "3-20 chars, lowercase letters/digits/_" });
-          const f = el("form", {}, [
-            el("h3", {}, "Sign up (anonymous)"),
-            el("p", { class: "help" }, "No email needed. Heads up: if you clear browser data, the account is gone — there's no recovery for anonymous accounts."),
-            field("Handle", handleInput),
-            el("div", { class: "actions" }, [el("button", { type: "submit", class: "primary" }, "Create account")]),
-          ]);
-          f.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            try {
-              await window.cloud.signUpAnonymous(handleInput.value);
-            } catch (err) {
-              alert(err.message || String(err));
+          // Tabbed: sign up vs recover
+          let mode = "signup"; // or "recover"
+          const tabs = el("div", { class: "chips" });
+          const formHost = el("div");
+
+          const render = () => {
+            tabs.innerHTML = "";
+            for (const m of [["signup", "Sign up"], ["recover", "Recover"]]) {
+              tabs.appendChild(el("button", {
+                type: "button",
+                class: "chip" + (mode === m[0] ? " active" : ""),
+                onclick: () => { mode = m[0]; render(); },
+              }, m[1]));
             }
-          });
-          accountCard.appendChild(f);
+            formHost.innerHTML = "";
+            formHost.appendChild(mode === "signup" ? renderSignup() : renderRecover());
+          };
+
+          const renderSignup = () => {
+            const handleInput = input("handle", { placeholder: "3-20 chars, lowercase letters/digits/_" });
+            const phraseBox = el("div");
+            const f = el("form", {}, [
+              el("h3", {}, "Sign up"),
+              el("p", { class: "help" }, "Anonymous account secured by an 8-word recovery phrase shown ONCE. Write it down. Without it, a cleared browser = lost account (no other recovery)."),
+              field("Handle", handleInput),
+              el("div", { class: "actions" }, [el("button", { type: "submit", class: "primary" }, "Create account")]),
+              phraseBox,
+            ]);
+            f.addEventListener("submit", async (e) => {
+              e.preventDefault();
+              try {
+                const { phrase } = await window.cloud.signUpWithRecovery(handleInput.value);
+                // Show phrase BIG with confirmation gate.
+                phraseBox.innerHTML = "";
+                phraseBox.appendChild(el("div", { class: "recovery-banner" }, [
+                  el("h3", {}, "WRITE THIS DOWN — shown only once"),
+                  el("div", { class: "recovery-phrase" }, phrase),
+                  el("p", { class: "help" }, "Save somewhere safe (paper, password manager). This + your handle is the ONLY way to recover this account if you lose access to this browser."),
+                  el("div", { class: "actions" }, [
+                    el("button", {
+                      type: "button",
+                      class: "secondary",
+                      onclick: async () => {
+                        try { await navigator.clipboard.writeText(phrase); alert("Phrase copied to clipboard."); } catch { alert("Copy failed — select and copy manually."); }
+                      },
+                    }, "Copy"),
+                    el("button", {
+                      type: "button",
+                      class: "primary",
+                      onclick: () => {
+                        if (!confirm("Confirm you've written it down somewhere. Phrase will be hidden after this.")) return;
+                        phraseBox.innerHTML = "";
+                        // The auth state change will rerender the whole view.
+                      },
+                    }, "I've written it down"),
+                  ]),
+                ]));
+              } catch (err) {
+                alert(err.message || String(err));
+              }
+            });
+            return f;
+          };
+
+          const renderRecover = () => {
+            const handleInput = input("handle", { placeholder: "your handle" });
+            const phraseInput = input("phrase", { placeholder: "eight-words-separated-by-dashes" });
+            const f = el("form", {}, [
+              el("h3", {}, "Recover account"),
+              el("p", { class: "help" }, "Enter the handle and 8-word recovery phrase you saved at signup."),
+              field("Handle", handleInput),
+              field("Recovery phrase", phraseInput),
+              el("div", { class: "actions" }, [el("button", { type: "submit", class: "primary" }, "Recover")]),
+            ]);
+            f.addEventListener("submit", async (e) => {
+              e.preventDefault();
+              try {
+                await window.cloud.recoverAccount(handleInput.value, phraseInput.value);
+              } catch (err) {
+                alert(err.message || String(err));
+              }
+            });
+            return f;
+          };
+
+          accountCard.appendChild(field("", tabs));
+          accountCard.appendChild(formHost);
+          render();
           return;
         }
         const profile = window.cloud.getProfile();

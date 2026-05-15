@@ -423,5 +423,29 @@ tr:last-child td { border-bottom: 0; }
 .friend-row:last-child { border-bottom: 0; }
 .friend-row .actions { margin: 0; }
 
+/* --- recovery phrase display --- */
+.recovery-banner {
+  margin-top: 16px;
+  border: 2px solid var(--accent);
+  background: rgba(167, 139, 250, 0.06);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.recovery-banner h3 { margin: 0 0 10px; color: var(--accent); font-size: 13px; letter-spacing: 0.6px; }
+.recovery-phrase {
+  font-family: ui-monospace, "Cascadia Code", Consolas, "Courier New", monospace;
+  font-size: 16px;
+  font-weight: 600;
+  background: var(--bg);
+  color: var(--text);
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  user-select: all;
+  word-break: break-all;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
 /* small touch */
 ::selection { background: rgba(167, 139, 250, 0.4); }

@@ -57,26 +57,125 @@
     return session;
   }
 
-  async function signUpAnonymous(handle) {
+  // ----- recovery phrase signup / sign-in -----
+
+  // 256 short common nouns. 8 words from 256 = 64 bits of entropy — plenty
+  // for a non-financial recovery flow. Picked for spelling clarity and to
+  // avoid homophones/near-homophones.
+  const WORDLIST = [
+    "amber","anchor","angel","apple","arctic","arrow","atlas","autumn","azure","badge",
+    "banana","beach","beacon","beetle","bell","berry","birch","bird","black","blossom",
+    "blue","boat","bone","book","boot","brain","brass","brave","bread","brick",
+    "bridge","brook","broom","brown","brush","cactus","cake","candle","canyon","carbon",
+    "castle","cedar","chair","cherry","chess","cider","cliff","clock","cloud","clover",
+    "coal","coast","cobalt","coffee","comet","comic","copper","coral","cotton","crane",
+    "creek","crow","crown","crystal","daisy","dawn","deer","delta","desert","dew",
+    "diamond","dolphin","dragon","dream","drum","dune","dusk","eagle","earth","ebony",
+    "echo","ember","emerald","falcon","feather","fern","field","finch","fire","flag",
+    "flame","flint","flower","forest","fox","frost","garden","ginger","glass","glow",
+    "gold","granite","grape","grass","gravel","green","harbor","hawk","hazel","heart",
+    "herb","hickory","hill","honey","horse","ice","iris","iron","ivory","ivy",
+    "jade","jewel","jungle","juniper","kettle","kite","knight","lake","lantern","laurel",
+    "leaf","lemon","light","lily","lime","linen","lion","lotus","magnet","maple",
+    "marble","marsh","meadow","melody","mint","mirror","mist","moon","moss","music",
+    "nectar","night","north","oak","ocean","olive","onyx","opal","orange","orchid",
+    "otter","owl","paint","palm","panda","paper","peach","pearl","pebble","pepper",
+    "petal","pine","planet","plaza","plum","poem","pond","poppy","prairie","quartz",
+    "queen","quill","quince","quiver","rain","raven","red","reef","ribbon","river",
+    "robin","rose","ruby","salt","sand","satin","scarlet","sea","seed","shadow",
+    "shell","ship","shore","silk","silver","sky","slate","snow","soil","south",
+    "spark","sparrow","spice","spring","star","stem","stone","storm","stream","sugar",
+    "summer","sunset","swan","sword","tea","thorn","thunder","tiger","tile","topaz",
+    "torch","trail","tree","tulip","twig","umbra","unicorn","valley","vapor","velvet",
+    "vine","violet","walnut","water","wave","west","wheat","willow","wind","wing",
+    "winter","wolf","wood","wool","world","yacht","yard","yarn","yellow","zephyr",
+    "zinc",
+  ];
+  // Trim or pad to exactly 256 so modular arithmetic on a uint8 is unbiased.
+  if (WORDLIST.length > 256) WORDLIST.length = 256;
+  while (WORDLIST.length < 256) WORDLIST.push("word" + WORDLIST.length);
+
+  function generateRecoveryPhrase() {
+    const buf = new Uint8Array(8);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, (b) => WORDLIST[b]).join("-");
+  }
+
+  function normalizePhrase(p) {
+    return String(p || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s,]+/g, "-")
+      .replace(/-+/g, "-");
+  }
+
+  async function derivePassword(phrase, handle) {
+    const enc = new TextEncoder();
+    // Salt with handle so two users with the same phrase get different passwords.
+    const data = enc.encode("harmreduce::v1::" + handle + "::" + phrase);
+    const hash = await crypto.subtle.digest("SHA-256", data);
+    const bytes = new Uint8Array(hash);
+    let s = "";
+    for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s);
+  }
+
+  const SYNTHETIC_EMAIL_DOMAIN = "harmreduce.local";
+  const syntheticEmail = (handle) => `${handle}@${SYNTHETIC_EMAIL_DOMAIN}`;
+
+  async function signUpWithRecovery(handle) {
     const c = getClient();
     if (!c) throw new Error("Cloud not configured. Fill in cloud-config.js.");
     handle = String(handle || "").trim().toLowerCase();
     if (!/^[a-z0-9_]{3,20}$/.test(handle)) {
       throw new Error("Handle must be 3-20 chars: lowercase letters, digits, underscore.");
     }
-    // Ensure handle is free before consuming an anonymous user slot.
     const { data: existing } = await c.from("profiles").select("user_id").eq("handle", handle).maybeSingle();
     if (existing) throw new Error("Handle already taken.");
-    const { data, error } = await c.auth.signInAnonymously();
+
+    const phrase = generateRecoveryPhrase();
+    const password = await derivePassword(phrase, handle);
+
+    const { data, error } = await c.auth.signUp({
+      email: syntheticEmail(handle),
+      password,
+    });
     if (error) throw error;
+    if (!data.session) {
+      // 'Confirm email' is on in Supabase — won't work for our synthetic emails.
+      throw new Error("Sign-up returned no session — likely 'Confirm email' is still ON in Supabase. Turn it off under Authentication → Providers → Email.");
+    }
     session = data.session;
+
     const { error: pErr } = await c.from("profiles").insert({ user_id: session.user.id, handle });
     if (pErr) {
-      // Roll back: sign out so user can try a different handle.
       await c.auth.signOut();
       session = null;
       throw pErr;
     }
+    await loadProfile();
+    notify();
+    return { phrase, session };
+  }
+
+  async function recoverAccount(handle, phrase) {
+    const c = getClient();
+    if (!c) throw new Error("Cloud not configured.");
+    handle = String(handle || "").trim().toLowerCase();
+    const normalized = normalizePhrase(phrase);
+    if (!/^[a-z0-9_]{3,20}$/.test(handle)) throw new Error("Invalid handle.");
+    if (normalized.split("-").length !== 8) {
+      throw new Error("Recovery phrase should be 8 words separated by dashes or spaces.");
+    }
+    const password = await derivePassword(normalized, handle);
+    const { data, error } = await c.auth.signInWithPassword({
+      email: syntheticEmail(handle),
+      password,
+    });
+    if (error) {
+      throw new Error("Couldn't recover — check the handle and phrase exactly.");
+    }
+    session = data.session;
     await loadProfile();
     notify();
     return session;
@@ -381,7 +480,8 @@
     onChange: (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); },
     getSession: () => session,
     getProfile: () => profile,
-    signUpAnonymous,
+    signUpWithRecovery,
+    recoverAccount,
     signOut,
     deleteAllMyData,
     listFriendships,
