@@ -1,0 +1,20 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Your Supabase URL + anon key live here. Anon keys are designed to be public,
+# but committing yours means every fork uses the same Supabase project.
+# Copy cloud-config.example.js → cloud-config.js and fill in your own values.
+cloud-config.js
+
+# Netlify local state
+.netlify/
+
+# Node (in case you add tooling later)
+node_modules/

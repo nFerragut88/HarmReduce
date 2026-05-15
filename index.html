@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HarmReduce</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <h1 class="brand">HarmReduce</h1>
+      <nav id="nav" aria-label="Main"></nav>
+      <div class="sidebar-footer">
+        <span class="status" id="status">local · v0.1</span>
+      </div>
+    </aside>
+    <main id="main">
+      <header class="topbar">
+        <div>
+          <h2 id="view-title">—</h2>
+          <p id="view-subtitle" class="muted">—</p>
+        </div>
+        <p class="disclaimer">For harm reduction / educational use. Not medical advice.</p>
+      </header>
+      <section id="view" aria-live="polite"></section>
+    </main>
+  </div>
+  <script src="tripsit-drugs.js"></script>
+  <script src="extra-combos.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="cloud-config.js"></script>
+  <script src="cloud.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

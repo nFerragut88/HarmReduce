@@ -1,0 +1,20 @@
+# Netlify-style headers. https://docs.netlify.com/routing/headers/
+
+# Big bundled drug DB — let browsers cache it for a day instead of re-downloading
+# 1.5 MB on every visit. `must-revalidate` makes them check for updates after expiry.
+/tripsit-drugs.js
+  Cache-Control: public, max-age=86400, must-revalidate
+
+# Code files — short cache, browsers revalidate frequently.
+/app.js
+  Cache-Control: public, max-age=3600, must-revalidate
+/cloud.js
+  Cache-Control: public, max-age=3600, must-revalidate
+/styles.css
+  Cache-Control: public, max-age=3600, must-revalidate
+
+# HTML + config never cached — pick up new deploys immediately.
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/cloud-config.js
+  Cache-Control: public, max-age=0, must-revalidate
