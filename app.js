@@ -1506,6 +1506,11 @@
       root.appendChild(friendsCard);
       root.appendChild(exportCard);
 
+      // Survives re-renders triggered by auth-state-change after signup,
+      // so the one-time recovery phrase actually stays on screen until the
+      // user explicitly clicks "I've written it down."
+      let postSignupPhrase = null;
+
       const renderAccount = () => {
         accountCard.innerHTML = "";
         if (!window.cloud || !window.cloud.isConfigured()) {
@@ -1521,6 +1526,36 @@
           return;
         }
         const session = window.cloud.getSession();
+
+        // Just-signed-up gate: show the phrase prominently until confirmed.
+        if (session && postSignupPhrase) {
+          accountCard.appendChild(el("div", { class: "recovery-banner" }, [
+            el("h3", {}, "WRITE THIS DOWN — shown only once"),
+            el("div", { class: "recovery-phrase" }, postSignupPhrase),
+            el("p", { class: "help" }, "Save somewhere safe (paper, password manager). This phrase + your handle is the ONLY way to recover this account if you lose access to this browser. There is no email reset."),
+            el("div", { class: "actions" }, [
+              el("button", {
+                type: "button",
+                class: "secondary",
+                onclick: async () => {
+                  try { await navigator.clipboard.writeText(postSignupPhrase); alert("Phrase copied to clipboard."); }
+                  catch { alert("Copy failed — select and copy manually."); }
+                },
+              }, "Copy"),
+              el("button", {
+                type: "button",
+                class: "primary",
+                onclick: () => {
+                  if (!confirm("Confirm you've saved the phrase. It won't be shown again.")) return;
+                  postSignupPhrase = null;
+                  renderAccount();
+                },
+              }, "I've written it down"),
+            ]),
+          ]));
+          return;
+        }
+
         if (!session) {
           // Tabbed: sign up vs recover
           let mode = "signup"; // or "recover"
@@ -1542,43 +1577,18 @@
 
           const renderSignup = () => {
             const handleInput = input("handle", { placeholder: "3-20 chars, lowercase letters/digits/_" });
-            const phraseBox = el("div");
             const f = el("form", {}, [
               el("h3", {}, "Sign up"),
-              el("p", { class: "help" }, "Anonymous account secured by an 8-word recovery phrase shown ONCE. Write it down. Without it, a cleared browser = lost account (no other recovery)."),
+              el("p", { class: "help" }, "Account secured by an 8-word recovery phrase shown ONCE. Write it down — without it + your handle, a cleared browser = lost account (no email reset)."),
               field("Handle", handleInput),
               el("div", { class: "actions" }, [el("button", { type: "submit", class: "primary" }, "Create account")]),
-              phraseBox,
             ]);
             f.addEventListener("submit", async (e) => {
               e.preventDefault();
               try {
                 const { phrase } = await window.cloud.signUpWithRecovery(handleInput.value);
-                // Show phrase BIG with confirmation gate.
-                phraseBox.innerHTML = "";
-                phraseBox.appendChild(el("div", { class: "recovery-banner" }, [
-                  el("h3", {}, "WRITE THIS DOWN — shown only once"),
-                  el("div", { class: "recovery-phrase" }, phrase),
-                  el("p", { class: "help" }, "Save somewhere safe (paper, password manager). This + your handle is the ONLY way to recover this account if you lose access to this browser."),
-                  el("div", { class: "actions" }, [
-                    el("button", {
-                      type: "button",
-                      class: "secondary",
-                      onclick: async () => {
-                        try { await navigator.clipboard.writeText(phrase); alert("Phrase copied to clipboard."); } catch { alert("Copy failed — select and copy manually."); }
-                      },
-                    }, "Copy"),
-                    el("button", {
-                      type: "button",
-                      class: "primary",
-                      onclick: () => {
-                        if (!confirm("Confirm you've written it down somewhere. Phrase will be hidden after this.")) return;
-                        phraseBox.innerHTML = "";
-                        // The auth state change will rerender the whole view.
-                      },
-                    }, "I've written it down"),
-                  ]),
-                ]));
+                postSignupPhrase = phrase;
+                renderAccount();
               } catch (err) {
                 alert(err.message || String(err));
               }
