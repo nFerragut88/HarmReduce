@@ -1,0 +1,14 @@
+# Netlify build config.
+#
+# Requires two environment variables set in Netlify (Site settings →
+# Environment variables → Add variable):
+#   HARMREDUCE_SUPABASE_URL       e.g. https://yourproject.supabase.co
+#   HARMREDUCE_SUPABASE_ANON_KEY  the public anon / publishable key
+#
+# At build time, this command writes cloud-config.js from those vars so the
+# static frontend has the values it needs. cloud-config.js itself stays
+# gitignored — the env vars are the source of truth.
+
+[build]
+  publish = "."
+  command = "printf 'window.HARMREDUCE_SUPABASE = { url: \"%s\", anonKey: \"%s\" };\\n' \"$HARMREDUCE_SUPABASE_URL\" \"$HARMREDUCE_SUPABASE_ANON_KEY\" > cloud-config.js"
